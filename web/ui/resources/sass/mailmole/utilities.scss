@@ -1,0 +1,29 @@
+.mm-logo {
+    &.mm-logo-light {
+        svg * {
+            fill: theme-color("light") !important;
+        }
+
+        color: theme-color("light") !important;
+    }
+
+    &.mm-logo-dark {
+        svg * {
+            fill: theme-color("primary") !important;
+        }
+
+        color: theme-color("primary") !important;
+    }
+}
+
+.nav.co-nav {
+    .nav-item {
+        .nav-link {
+            padding-left: 1em;
+            border-left: 2px solid transparent;
+            &.active{
+                border-left: 2px solid $link-hover-color;
+            }
+        }
+    }
+}

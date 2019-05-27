@@ -1,0 +1,47 @@
+@import "./pages";
+
+.btn {
+    box-shadow: none;
+    font-size: 1rem;
+
+    &.btn-no-outline:focus {
+        outline: 0;
+        box-shadow: none;
+    }
+}
+
+.dropdown-item {
+    &.active, &:active {
+        background: $link-hover-color;
+    }
+}
+
+nav.navbar {
+    .navbar-brand.mm-logo {
+        svg {
+            width: 168px;
+            vertical-align: middle;
+        }
+    }
+}
+
+.form-control:focus {
+    border-color: map-get($theme-colors, 'primary');
+    box-shadow: none;
+    -webkit-box-shadow: none;
+}
+
+.footer {
+    background: #2a282d;
+
+    .text-sm {
+        font-size: 0.85rem;
+    }
+
+    .mm-logo {
+        svg {
+            vertical-align: middle;
+            padding-bottom: .5em;
+        }
+    }
+}

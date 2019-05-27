@@ -1,0 +1,34 @@
+// Body
+$body-bg: hsl(203, 16%, 94%);
+
+// Typography
+//$font-family-sans-serif: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol";
+$font-family-sans-serif: 'Nunito', sans-serif;
+$font-size-base: 0.9rem;
+$line-height-base: 1.6;
+
+// Colors
+$blue: #3490dc;
+$indigo: #6574cd;
+$purple: #9561e2;
+$pink: #f66D9b;
+$red: #e3342f;
+$orange: #f6993f;
+$yellow: #ffed4a;
+$green: #38c172;
+$teal: #4dc0b5;
+$cyan: #6cb2eb;
+
+$theme-colors: (
+  primary: #f364a2,
+  neutral: #616e7c,
+  neutral-light: #7b8794,
+  neutral-light-inverse: #e4e7eb,
+  supporting: #62f4eb,
+);
+
+$link-color: map-get($theme-colors, 'neutral');
+$link-hover-color: lighten($link-color, 10%);
+$link-hover-decoration: none;
+
+$btn-border-radius: 3px;
