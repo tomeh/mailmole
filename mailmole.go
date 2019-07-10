@@ -5,15 +5,17 @@ package main
 import (
 	"flag"
 	"fmt"
+	"io/ioutil"
 	"log"
+	"net/mail"
 	"os"
 	"os/exec"
 	"runtime"
 
-	"github.com/tomeh/mailmole/console"
-	"github.com/tomeh/mailmole/contracts"
+	//"github.com/tomeh/mailmole/console"
+	//"github.com/tomeh/mailmole/contracts"
 	"github.com/tomeh/mailmole/smtp"
-	"github.com/tomeh/mailmole/web"
+	//"github.com/tomeh/mailmole/web"
 )
 
 func init() {
@@ -35,30 +37,43 @@ func flags() {
 func main() {
 	flag.Parse()
 
-	// Create smtp server with a channel to subscribe listeners.
-	var listeners []contracts.Listener
-	sub := make(chan contracts.Listener)
-	smtpServer := smtp.NewServer(sub)
+	//var listeners []contracts.Sub
+	// Register listeners globally
 
-	if !quiet {
-		// Create the console listener.
-		con := console.NewConsole()
-		sub <- con
-		listeners = append(listeners, con)
+	//if !quiet {
+	//	// Create the console listener.
+	//	con := console.NewConsole()
+	//	listeners = append(listeners, con)
+	//}
+
+	//if http {
+	//	// Launch the http server.
+	//	httpServer := web.NewServer(host, port)
+	//
+	//	if autoLaunchBrowser {
+	//		go launchBrowser(httpServer.GetBaseUrl())
+	//	}
+	//
+	//	go httpServer.Start()
+	//}
+
+	smtpServer := &smtp.Server{
+		Addr: "127.0.0.1:1025",
+		Handler: smtp.NewMessageHandler(mailHandler),
 	}
 
-	if http {
-		// Launch the http server.
-		httpServer := web.NewServer(host, port)
+	_ = smtpServer.ListenAndServe()
+}
 
-		if autoLaunchBrowser {
-			go launchBrowser(httpServer.GetBaseUrl())
-		}
+func mailHandler(msg *mail.Message) {
+	b, err := ioutil.ReadAll(msg.Body)
 
-		go httpServer.Start()
+	if err != nil {
+		log.Println(fmt.Sprintf("Error reading message body: %s", err))
+		return
 	}
 
-	smtpServer.Start()
+	log.Println(string(b))
 }
 
 func browserCmd() (string, bool) {
