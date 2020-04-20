@@ -30,16 +30,16 @@ func (e *transitionError) Error() string {
 }
 
 // Transition Smtp using an event.
-// If the passed event isn't valid for the current state,
-// an error is returned. This is a logical error
-// due to an invalid event being passed.
+// An error is returned if the passed event isn't valid for the current state,
+// or if the current state is an end state.
 func (smtp *Smtp) Transition(e event) error {
-	if endStatesList.contains(smtp.State) {
+	// Check the list of end states. If current state is an end state, return an error.
+	if smtp.IsInEndState() {
 		return &transitionError{smtp.State, e}
 	}
 	stateTransitions, ok := transitions[smtp.State]
 	if !ok {
-		// Only here if not all states were registered with the transitions map.
+		// Current state not registered in the transitions map.
 		log.Fatalf("State %s not registered", smtp.State)
 	}
 	newState, ok := stateTransitions[e]
@@ -48,70 +48,32 @@ func (smtp *Smtp) Transition(e event) error {
 		return &transitionError{smtp.State, e}
 	}
 	smtp.State = newState
-
 	return nil
+}
+
+func (smtp *Smtp) Can(e event) bool {
+	if smtp.IsInEndState() {
+		return false
+	}
+	stateTransitions, ok := transitions[smtp.State]
+	if !ok {
+		return false
+	}
+	_, ok = stateTransitions[e]
+	return ok
+}
+
+func (smtp *Smtp) Cannot(e event) bool {
+	return !smtp.Can(e)
+}
+
+func (smtp *Smtp) IsInEndState() bool {
+	return endStatesList.contains(smtp.State)
 }
 
 func (smtp *Smtp) Is(s State) bool {
 	return smtp.State == s
 }
-
-//func (fsm *StateMachine) Cannot(s State) bool {
-//	return fsm.S.Cannot(string(s))
-//}
-//
-//func (fsm *StateMachine) IsFinished() bool {
-//	return fsm.S.Is(string(StateComp))
-//}
-//
-//func (fsm *StateMachine) stateResponse() response {
-//	return stateResponses[State(fsm.S.Current())]
-//}
-//
-//func (fsm *StateMachine) setState(s State) {
-//	fsm.S.SetState(string(s))
-//}
-//
-//
-//func NewSmtpStateMachine() *StateMachine {
-//	smtpFsm := &StateMachine{}
-//
-//	events := fsm.Events{
-//		{Name: string(eventHelo), Src: []string{string(StateInit)}, Dst: string(StateHelo)},
-//		{Name: string(eventEhlo), Src: []string{string(StateInit)}, Dst: string(StateHelo)},
-//		{Name: string(eventMail), Src: []string{string(StateHelo)}, Dst: string(StateMail)},
-//		{Name: string(eventRcpt), Src: []string{string(StateMail)}, Dst: string(StateRcpt)},
-//		{Name: string(eventData), Src: []string{string(StateRcpt)}, Dst: string(StateData)},
-//
-//		{Name: string(eventRset), Src: []string{string(StateMail), string(StateRcpt)}, Dst: string(StateHelo)},
-//		{Name: string(eventPnnd), Src: []string{string(StateData)}, Dst: string(StateHelo)},
-//		{Name: string(eventQuit), Src: []string{string(StateInit), string(StateHelo), string(StateMail), string(StateRcpt)}, Dst: string(StateComp)},
-//	}
-//
-//	smtpFsm.S = fsm.NewFSM(string(StateInit), events, fsm.Callbacks{})
-//
-//	return smtpFsm
-//}
-//
-//type response struct {
-//	code    int
-//	message string
-//}
-//
-//func (res *response) string() string {
-//	return fmt.Sprintf("%d %s", res.code, res.message)
-//}
-//
-//func (res *response) bytes() []byte {
-//	return []byte(res.string())
-//}
-//
-//var stateResponses = map[State]response{
-//	StateInit: {220, "Mailmole smtp"},
-//	StateHelo: {250, "Mailmole at your service"},
-//	StateMail: {250, "Mailmole at your service"},
-//	State: {250, "Mailmole at your service"},
-//}
 
 const (
 	StateInit State = "init"
@@ -144,7 +106,6 @@ func (endStates *endStates) contains (s State) bool {
 			return true
 		}
 	}
-
 	return false
 }
 
