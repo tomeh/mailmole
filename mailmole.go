@@ -5,16 +5,13 @@ package main
 import (
 	"flag"
 	"fmt"
-	"io/ioutil"
+	smtp "github.com/tomeh/mailmole/smtp"
+	//"io/ioutil"
 	"log"
-	"net/mail"
+	//"net/mail"
 	"os"
 	"os/exec"
 	"runtime"
-
-	//"github.com/tomeh/mailmole/console"
-	//"github.com/tomeh/mailmole/contracts"
-	"github.com/tomeh/mailmole/smtp"
 	//"github.com/tomeh/mailmole/web"
 )
 
@@ -24,7 +21,6 @@ func init() {
 }
 
 func flags() {
-	flag.BoolVar(&quiet, "quiet", false, "Dont log messages to console.")
 	flag.BoolVar(&http, "http", true, "Launch http server (default: true)")
 
 	flag.IntVar(&port, "port", 8084, "The port at which to serve http.")
@@ -57,24 +53,30 @@ func main() {
 	//	go httpServer.Start()
 	//}
 
-	smtpServer := &smtp.Server{
-		Addr: "127.0.0.1:1025",
-		Handler: smtp.NewMessageHandler(mailHandler),
+	hostName, err := os.Hostname()
+	if err != nil {
+		panic(err)
 	}
+
+	smtpServer := smtp.NewServer(smtp.ServerConfig{
+		Addr:     "0.0.0.0",
+		Port:     2525,
+		HostName: hostName,
+	})
 
 	_ = smtpServer.ListenAndServe()
 }
 
-func mailHandler(msg *mail.Message) {
-	b, err := ioutil.ReadAll(msg.Body)
-
-	if err != nil {
-		log.Println(fmt.Sprintf("Error reading message body: %s", err))
-		return
-	}
-
-	log.Println(string(b))
-}
+//func mailHandler(msg *mail.Message) {
+//	b, err := ioutil.ReadAll(msg.Body)
+//
+//	if err != nil {
+//		log.Println(fmt.Sprintf("Error reading message body: %s", err))
+//		return
+//	}
+//
+//	log.Println(string(b))
+//}
 
 func browserCmd() (string, bool) {
 	browser := map[string]string{
@@ -105,8 +107,7 @@ func launchBrowser(addr string) {
 }
 
 var (
-	quiet bool
-	http  bool
+	http bool
 
 	port              int
 	host              string

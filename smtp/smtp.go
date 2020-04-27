@@ -2,148 +2,183 @@ package smtp
 
 import (
 	"fmt"
-	"log"
+	"regexp"
+	"strings"
 )
 
 type State string
-type event string
 
-// An FSM representing the states of an SMTP interaction.
-type Smtp struct {
-	State State
+type session struct {
+	State
 }
 
-// Constructor for the SMTP FSM.
-func NewSmtp() Smtp {
-	return Smtp{
-		StateInit,
+func (s *session) changeState(state State) {
+	s.State = state
+}
+
+type handler struct {
+	match
+	clientInputHandler
+}
+
+type match func(string) bool
+
+type clientInputHandler func(string, *connection)
+
+var handlers []*handler
+
+func init() {
+	handlers = append(
+		handlers,
+		&handler{
+			func(input string) bool {
+				return len(input) >= 4 && strings.ToUpper(input[:4]) == "HELO"
+			},
+			onHelo,
+		},
+		&handler{
+			func(input string) bool {
+				return len(input) >= 4 && strings.ToUpper(input[:4]) == "EHLO"
+			},
+			onEhlo,
+		},
+		&handler{
+			func(input string) bool {
+				return len(input) >= 4 && strings.ToUpper(input[:4]) == "MAIL"
+			},
+			onMail,
+		},
+		&handler{
+			func(input string) bool {
+				return len(input) >= 4 && strings.ToUpper(input[:4]) == "RCPT"
+			},
+			onRcpt,
+		},
+		&handler{
+			func(input string) bool {
+				return len(input) >= 4 && strings.ToUpper(input[:4]) == "DATA"
+			},
+			onData,
+		},
+		&handler{
+			func(input string) bool {
+				return len(input) >= 4 && strings.ToUpper(input[:4]) == "RSET"
+			},
+			onRset,
+		},
+		&handler{
+			func(input string) bool {
+				return len(input) >= 4 && strings.ToUpper(input[:4]) == "NOOP"
+			},
+			onNoop,
+		},
+		&handler{
+			func(input string) bool {
+				return len(input) >= 4 && strings.ToUpper(input[:4]) == "VRFY"
+			},
+			onVrfy,
+		},
+		&handler{
+			func(input string) bool {
+				return len(input) >= 4 && strings.ToUpper(input[:4]) == "QUIT"
+			},
+			onQuit,
+		},
+	)
+}
+
+func onHelo(message string, conn *connection) {
+	parts := strings.Fields(message)[1:]
+	if len(parts) == 0 {
+		conn.mustSend(501, "HELO requires domain/address - see RFC-5321 4.1.1.1")
+		return
 	}
+	conn.session.changeState(StateHelo)
+	conn.mustSend(250, fmt.Sprintf("-%s greets %s", conn.Server.HostName, parts[0]))
 }
 
-type transitionError struct {
-	s State
-	e event
-}
-
-func (e *transitionError) Error() string {
-	return fmt.Sprintf("Current state %s does not understand event %s", e.s, e.e)
-}
-
-// Transition Smtp using an event.
-// An error is returned if the passed event isn't valid for the current state,
-// or if the current state is an end state.
-func (smtp *Smtp) Transition(e event) error {
-	// Check the list of end states. If current state is an end state, return an error.
-	if smtp.IsInEndState() {
-		return &transitionError{smtp.State, e}
+func onEhlo(message string, conn *connection) {
+	parts := strings.Fields(message)[1:]
+	if len(parts) == 0 {
+		conn.mustSend(501, "EHLO requires domain/address - see RFC-5321 4.1.1.1")
+		return
 	}
-	stateTransitions, ok := transitions[smtp.State]
-	if !ok {
-		// Current state not registered in the transitions map.
-		log.Fatalf("State %s not registered", smtp.State)
-	}
-	newState, ok := stateTransitions[e]
-	if !ok {
-		// Cannot apply this event to the current state.
-		return &transitionError{smtp.State, e}
-	}
-	smtp.State = newState
-	return nil
+	conn.session.changeState(StateEhlo)
+	conn.mustSend(250, fmt.Sprintf("-%s greets %s", conn.Server.HostName, parts[0]))
 }
 
-func (smtp *Smtp) Can(e event) bool {
-	if smtp.IsInEndState() {
-		return false
+func onMail(message string, conn *connection) {
+	re := regexp.MustCompile(`FROM:\<(\S+@\S+)\>`)
+	matches := re.FindStringSubmatch(strings.Trim(message, "\r"))
+	if len(matches) < 1 {
+		// TODO handle better.
+		panic("NOT ENOUGH MATCHES")
 	}
-	stateTransitions, ok := transitions[smtp.State]
-	if !ok {
-		return false
+
+	// TODO do something with from
+	//from := matches[1]
+
+	conn.session.changeState(StateMail)
+	conn.mustSend(250, "OK")
+}
+
+func onRcpt(message string, conn *connection) {
+	// Check To
+	conn.session.changeState(StateRcpt)
+	conn.mustSend(220, message)
+}
+
+func onData(_ string, conn *connection) {
+	conn.mustSend(354, "Start mail input; end with <CRLF>.<CRLF>")
+	// Loop on receipt, look for <crlf>.<crlf>
+	conn.session.changeState(StateData)
+	conn.mustSend(250, "OK")
+}
+
+func onRset(message string, conn *connection) {
+	// TODO
+	conn.session.changeState(StateRset)
+	conn.mustSend(220, message)
+}
+
+func onNoop(message string, conn *connection) {
+	// TODO
+	conn.session.changeState(StateNoop)
+	conn.mustSend(220, message)
+}
+
+func onVrfy(message string, conn *connection) {
+	// TODO
+	conn.session.changeState(StateVrfy)
+	conn.mustSend(220, message)
+}
+
+func onQuit(_ string, conn *connection) {
+	conn.session.changeState(StateQuit)
+	conn.mustSend(221, fmt.Sprintf("%s closing connection.", conn.Server.HostName))
+}
+
+func handleClientInput(input string, conn *connection) {
+	for _, handler := range handlers {
+		if handler.match(input) {
+			handler.clientInputHandler(input, conn)
+			return
+		}
 	}
-	_, ok = stateTransitions[e]
-	return ok
-}
 
-func (smtp *Smtp) Cannot(e event) bool {
-	return !smtp.Can(e)
-}
-
-func (smtp *Smtp) IsInEndState() bool {
-	return endStatesList.contains(smtp.State)
-}
-
-func (smtp *Smtp) Is(s State) bool {
-	return smtp.State == s
+	// TODO Setup a map of standard errors codes.
+	conn.mustSend(500, "Unrecognized command")
 }
 
 const (
 	StateInit State = "init"
-	StateHelo State = "helo"
 	StateEhlo State = "ehlo"
+	StateHelo State = "helo"
 	StateMail State = "mail"
 	StateRcpt State = "rcpt"
 	StateData State = "data"
+	StateRset State = "rset"
+	StateNoop State = "noop"
+	StateVrfy State = "vrfy"
 	StateQuit State = "quit"
-	StateComp State = "complete"
-
-	eventHelo event = "helo"
-	eventEhlo event = "ehlo"
-	eventMail event = "mail"
-	eventRcpt event = "rcpt"
-	eventData event = "data"
-	eventRset event = "reset"
-	eventPnnd event = "pound"
-	eventSend event = "send"
-	eventQuit event = "quit"
 )
-
-var transitions map[State]map[event]State
-var endStatesList endStates
-type endStates []State
-
-func (endStates *endStates) contains (s State) bool {
-	for _, state := range *endStates {
-		if state == s {
-			return true
-		}
-	}
-	return false
-}
-
-func init() {
-	endStatesList = []State{
-		StateComp,
-		StateQuit,
-	}
-
-	transitions = make(map[State]map[event]State)
-
-	transitions[StateInit] = make(map[event]State)
-	transitions[StateHelo] = make(map[event]State)
-	transitions[StateEhlo] = make(map[event]State)
-	transitions[StateMail] = make(map[event]State)
-	transitions[StateRcpt] = make(map[event]State)
-	transitions[StateData] = make(map[event]State)
-	transitions[StateQuit] = make(map[event]State)
-	transitions[StateComp] = make(map[event]State)
-
-	transitions[StateInit][eventHelo] = StateHelo
-	transitions[StateInit][eventEhlo] = StateEhlo
-
-	transitions[StateHelo][eventMail] = StateMail
-	transitions[StateHelo][eventQuit] = StateQuit
-	transitions[StateHelo][eventRset] = StateHelo
-
-	transitions[StateEhlo][eventMail] = StateMail
-	transitions[StateEhlo][eventQuit] = StateQuit
-	transitions[StateEhlo][eventRset] = StateEhlo
-
-	transitions[StateMail][eventRcpt] = StateRcpt
-	transitions[StateMail][eventQuit] = StateQuit
-	transitions[StateMail][eventRset] = StateHelo // Not sure if this (and others) are suitable? Do we need to reset to Ehlo if that was used?
-
-	transitions[StateRcpt][eventRcpt] = StateRcpt
-	transitions[StateRcpt][eventQuit] = StateQuit
-	transitions[StateRcpt][eventRset] = StateHelo // And again.
-
-	transitions[StateData][eventSend] = StateComp
-}

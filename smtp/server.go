@@ -1,185 +1,73 @@
 package smtp
 
 import (
-	"bufio"
 	"fmt"
-	"io"
 	"log"
 	"net"
 )
 
-var registeredHandlers = stateHandlers{
-	StateInit: onInit,
-	//StateHelo: onHelo,
-	//StateMail: onMail,
-	//StateData: onData,
-}
-
+// TODO - DOCUMENT
 type Server struct {
-	Addr    string
-	Handler Handler
+	ServerConfig
 }
 
-func (s *Server) ListenAndServe() error {
-	addr := s.Addr
-	ln, err := net.Listen("tcp", addr)
+// Create a new Server instance with the given configuration.
+// Call method ListenAndServe
+// TODO - DOCUMENT
+func NewServer(c ServerConfig) Server {
+	err := c.validate()
+	if err != nil {
+		log.Fatalf("ServerConfig invalid - %s", err)
+	}
+	return Server{c}
+}
+
+// TODO - DOCUMENT
+func (server *Server) ListenAndServe() error {
+	var err error
+	listener, err := net.Listen("tcp", fmt.Sprintf("%s:%d", server.Addr, server.Port))
 	if err != nil {
 		return err
 	}
-	s.Serve(ln.(*net.TCPListener))
-	return nil
-}
 
-func (s *Server) Serve(l net.Listener) {
-	var err error
-	var rw net.Conn
-	log.Printf("SMTP Server listening on %s\n", s.Addr)
+	log.Printf("Mail mole SMTP Server listening on %s - Port %d\n", server.Addr, server.Port)
+
 	for {
-		rw, err = l.Accept()
+		// Wait for new connections.
+		netConn, err := listener.Accept()
 		if err != nil {
-			log.Println(fmt.Sprintf("Error accepting connection: %s", err))
+			log.Printf("Error accepting connection: %s\n", err)
+			continue
 		}
-		c := s.newConn(rw)
-		go c.serve()
+
+		// Dispatch a handler.
+		go func() {
+			defer func() {
+				err := netConn.Close()
+				if err != nil {
+					log.Printf("Error closing connection %s\n", err)
+				}
+			}()
+
+			smtpConn := connection{
+				netConn,
+				server,
+				session{StateInit},
+			}
+
+			smtpConn.handle()
+		}()
 	}
 }
 
-type conn struct {
-	server *Server
-	rwc    net.Conn
-}
+var (
+	LogDebug   bool
+	version    string
+	serverName string
+)
 
-func (s *Server) newConn(rwc net.Conn) *conn {
-	return &conn{
-		server: s,
-		rwc:    rwc,
-	}
-}
-
-func (conn *conn) serve() {
-	defer func () {
-		err := conn.rwc.Close()
-		if err != nil {
-			log.Println(fmt.Sprintf("Error closing connection %s", err))
-		}
-	}()
-
-	smtp := NewSmtp()
-	r, wr := conn.rwc, conn.rwc
-
-
-
-	//var next State
-	//var tests State
-	//for !smtp.IsInEndState() {
-	//	//tests = smtp.State()
-	//	_, next = registeredHandlers[tests](r, wr)
-	//	if !smtp.Can(next) {
-	//		log.Fatalf("Cannot move to state %s from %s", string(next), smtp.State())
-	//	}
-	//
-	//	smtp.S.SetState(string(next))
-	//}
-	//_ = onFini(r, wr)
-
-	go conn.server.Handler.HandleMessage(stubMessage("message"))
-}
-
-type stateHandler func (reader io.Reader, writer io.Writer) (error, State)
-
-type stateHandlers map[State]stateHandler
-
-func onInit(reader io.Reader, writer io.Writer) (error, State) {
-	err := writeResponse(writer, StateInit)
-	if err != nil {
-		return err, ""
-	}
-
-	bufReader := bufio.NewReader(reader)
-	input, err := bufReader.ReadString('\n')
-	if err != nil {
-		return err, ""
-	}
-
-	log.Println(string(input))
-
-	return nil, StateHelo
-}
-
-//func onHelo(reader io.Reader, writer io.Writer) (error, State) {
-//	err := writeResponse(writer, StateHelo)
-//	if err != nil {
-//		return err, ""
-//	}
-//
-//	bufReader := bufio.NewReader(reader)
-//	input, err := bufReader.ReadString('\n')
-//	if err != nil {
-//		return err, ""
-//	}
-//
-//	log.Println(string(input))
-//
-//	return nil, StateMail
-//}
-//
-//func onMail(reader io.Reader, writer io.Writer) (error, State) {
-//	err := writeResponse(writer, StateMail)
-//	if err != nil {
-//		return err, ""
-//	}
-//
-//	bufReader := bufio.NewReader(reader)
-//	input, err := bufReader.ReadString('\n')
-//	if err != nil {
-//		return err, ""
-//	}
-//
-//	log.Println(string(input))
-//
-//	return nil, StateData
-//}
-//
-//func onData(reader io.Reader, writer io.Writer) (error, State) {
-//	err := writeResponse(writer, StateData)
-//	if err != nil {
-//		return err, ""
-//	}
-//
-//	bufReader := bufio.NewReader(reader)
-//	input, err := bufReader.ReadString('\n')
-//	if err != nil {
-//		return err, ""
-//	}
-//
-//	log.Println(string(input))
-//
-//	return nil, StateComp
-//}
-
-//func onFini(reader io.Reader, writer io.Writer) error {
-//	err := writeResponse(writer, StateComp)
-//	if err != nil {
-//		return err
-//	}
-//
-//	return nil
-//}
-
-func writeResponse(writer io.Writer, state State) error {
-	var err error
-
-	protocolText := stateResponses[state]
-
-	_, err = writer.Write((protocolText).bytes())
-	if err != nil {
-		return err
-	}
-
-	_, err = writer.Write([]byte("\n"))
-	if err != nil {
-		return err
-	}
-
-	return nil
+func init() {
+	LogDebug = true
+	version = "0.0.1"
+	serverName = "Mailmole"
 }
