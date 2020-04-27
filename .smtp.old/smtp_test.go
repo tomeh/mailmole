@@ -1,4 +1,4 @@
-package smtp
+package _smtp_old
 
 import (
 	"testing"
@@ -37,6 +37,7 @@ var stateInitInvalidEvents = []event{
 	eventPnnd,
 	eventQuit,
 }
+
 func TestStateInitInvalidEvent(t *testing.T) {
 	s := NewSmtp()
 	for _, event := range stateInitInvalidEvents {
@@ -77,6 +78,7 @@ var stateHeloInvalidEvents = []event{
 	eventData,
 	eventPnnd,
 }
+
 func TestStateHeloInvalidEvent(t *testing.T) {
 	s := NewSmtp()
 	s.State = StateHelo
@@ -118,6 +120,7 @@ var stateEhloInvalidEvents = []event{
 	eventData,
 	eventPnnd,
 }
+
 func TestStateEhloInvalidEvent(t *testing.T) {
 	s := NewSmtp()
 	s.State = StateEhlo
@@ -159,6 +162,7 @@ var stateMailInvalidEvents = []event{
 	eventData,
 	eventPnnd,
 }
+
 func TestStateMailInvalidEvents(t *testing.T) {
 	s := NewSmtp()
 	s.State = StateMail
@@ -199,6 +203,7 @@ var stateRcptInvalidEvents = []event{
 	eventMail,
 	eventPnnd,
 }
+
 func TestStateRcptInvalidEvents(t *testing.T) {
 	s := NewSmtp()
 	s.State = StateRcpt
@@ -233,6 +238,7 @@ var stateDataInvalidEvents = []event{
 	eventPnnd,
 	eventQuit,
 }
+
 func TestStateDataInvalidEvents(t *testing.T) {
 	s := NewSmtp()
 	s.State = StateData
@@ -258,6 +264,7 @@ var stateCompleteInvalidEvents = []event{
 	eventSend,
 	eventQuit,
 }
+
 func TestStateCompleteInvalidEvents(t *testing.T) {
 	s := NewSmtp()
 	s.State = StateComp
@@ -283,6 +290,7 @@ var stateQuitInvalidEvents = []event{
 	eventSend,
 	eventQuit,
 }
+
 func TestStateQuitInvalidEvents(t *testing.T) {
 	s := NewSmtp()
 	s.State = StateQuit

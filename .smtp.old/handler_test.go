@@ -1,4 +1,4 @@
-package smtp
+package _smtp_old
 
 import (
 	"io/ioutil"
@@ -7,7 +7,7 @@ import (
 )
 
 func TestNewMessageHandler(t *testing.T) {
-	NewMessageHandler(func (msg *mail.Message) {})
+	NewMessageHandler(func(msg *mail.Message) {})
 }
 
 func TestMessageHandler_HandleMessage(t *testing.T) {

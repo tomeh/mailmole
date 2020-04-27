@@ -1,4 +1,4 @@
-package smtp
+package _smtp_old
 
 import (
 	"fmt"
