@@ -10,6 +10,8 @@ type State string
 
 type session struct {
 	State
+	from string
+	to   string
 }
 
 func (s *session) changeState(state State) {
@@ -94,7 +96,7 @@ func onHelo(message string, conn *connection) {
 		return
 	}
 	conn.session.changeState(StateHelo)
-	conn.mustSend(250, fmt.Sprintf("-%s greets %s", conn.Server.HostName, parts[0]))
+	conn.mustSend(250, fmt.Sprintf("%s greets %s", conn.Server.HostName, parts[0]))
 }
 
 func onEhlo(message string, conn *connection) {
@@ -104,7 +106,7 @@ func onEhlo(message string, conn *connection) {
 		return
 	}
 	conn.session.changeState(StateEhlo)
-	conn.mustSend(250, fmt.Sprintf("-%s greets %s", conn.Server.HostName, parts[0]))
+	conn.mustSend(250, fmt.Sprintf("%s greets %s", conn.Server.HostName, parts[0]))
 }
 
 func onMail(message string, conn *connection) {
@@ -115,17 +117,22 @@ func onMail(message string, conn *connection) {
 		panic("NOT ENOUGH MATCHES")
 	}
 
-	// TODO do something with from
-	//from := matches[1]
-
 	conn.session.changeState(StateMail)
+	conn.session.from = matches[1]
 	conn.mustSend(250, "OK")
 }
 
 func onRcpt(message string, conn *connection) {
-	// Check To
+	re := regexp.MustCompile(`TO:\<(\S+@\S+)\>`)
+	matches := re.FindStringSubmatch(strings.Trim(message, "\r"))
+	if len(matches) < 1 {
+		// TODO handle better.
+		panic("NOT ENOUGH MATCHES")
+	}
+
 	conn.session.changeState(StateRcpt)
-	conn.mustSend(220, message)
+	conn.session.to = matches[1]
+	conn.mustSend(250, "OK")
 }
 
 func onData(_ string, conn *connection) {

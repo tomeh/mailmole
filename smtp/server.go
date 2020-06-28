@@ -52,7 +52,7 @@ func (server *Server) ListenAndServe() error {
 			smtpConn := connection{
 				netConn,
 				server,
-				session{StateInit},
+				session{StateInit, "", ""},
 			}
 
 			smtpConn.handle()
