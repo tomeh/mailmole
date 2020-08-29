@@ -1,18 +1,30 @@
 package smtp
 
 import (
+	"os"
 	"strings"
 	"testing"
 )
 
 var addr = "0.0.0.0"
-var port = 2525
+var port = 0
+var hostname string
+
+func init() {
+	var err error
+	hostname, err = os.Hostname()
+	if err != nil {
+		// TODO
+		panic("err")
+	}
+}
 
 // Ensure that a validate ServerConfig is validated.
 func TestServerConfigValidate(t *testing.T) {
 	serverConfig := &ServerConfig{
 		addr,
 		port,
+		hostname,
 	}
 
 	err := serverConfig.validate()
@@ -27,6 +39,7 @@ func TestServerConfigValidateFails(t *testing.T) {
 	serverConfig := &ServerConfig{
 		"one.two.thr.fou",
 		port,
+		hostname,
 	}
 
 	err := serverConfig.validate()

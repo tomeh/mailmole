@@ -64,7 +64,14 @@ func main() {
 		HostName: hostName,
 	})
 
-	_ = smtpServer.ListenAndServe()
+	// Move these to the server struct
+	started := make(chan bool)
+	stop := make(chan bool)
+	_ = smtpServer.ListenAndServe(started, stop)
+
+	// Remove these, need to handle this on a ctrl c or stop signal or whatever.
+	<-started
+	started <- true
 }
 
 //func mailHandler(msg *mail.Message) {
