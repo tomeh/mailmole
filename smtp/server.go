@@ -1,9 +1,11 @@
 package smtp
 
 import (
+	"bufio"
 	"fmt"
 	"log"
 	"net"
+	"net/mail"
 )
 
 // TODO - DOCUMENT
@@ -24,20 +26,18 @@ func NewServer(c ServerConfig) Server {
 }
 
 // TODO - DOCUMENT
-func (server *Server) ListenAndServe(start chan bool, stop chan bool) error {
+func (server *Server) ListenAndServe(started chan bool, stop chan bool) {
 	var stopped bool
 	var err error
 	listener, err := net.Listen("tcp", fmt.Sprintf("%s:%d", server.Addr, server.Port))
 	if err != nil {
-		return err
+		panic(err)
 	}
 
 	server.boundPort = listener.Addr().(*net.TCPAddr).Port
 
 	log.Printf("MailMole SMTP Server listening on %s - Port %d\n", server.Addr, server.boundPort)
 
-	// Wait for the start signal.
-	<-start
 	go func() {
 		for {
 			// Wait for new connections.
@@ -61,10 +61,22 @@ func (server *Server) ListenAndServe(start chan bool, stop chan bool) error {
 					}
 				}()
 
+				scanner := bufio.NewScanner(netConn)
+				scanner.Split(ScanCRLF)
+
 				smtpConn := connection{
 					netConn,
+					scanner,
 					server,
-					session{StateInit, "", ""},
+					session{
+						StateInit,
+						"",
+						"",
+						&mail.Message{
+							Header: nil,
+							Body:   nil,
+						},
+					},
 				}
 
 				smtpConn.handle()
@@ -72,8 +84,8 @@ func (server *Server) ListenAndServe(start chan bool, stop chan bool) error {
 		}
 	}()
 
-	// Signal that the server is started.
-	start <- true
+	// Notify that the server is started
+	started <- true
 
 	// Wait for the stop signal.
 	stopped = <-stop
@@ -82,8 +94,6 @@ func (server *Server) ListenAndServe(start chan bool, stop chan bool) error {
 
 	// Signal that the server is stopped.
 	stop <- true
-
-	return err
 }
 
 var (

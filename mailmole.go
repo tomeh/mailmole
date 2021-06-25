@@ -4,15 +4,15 @@ package main
 
 import (
 	"flag"
-	"fmt"
-	smtp "github.com/tomeh/mailmole/smtp"
+	"github.com/tomeh/mailmole/browser"
+	"github.com/tomeh/mailmole/smtp"
+	"github.com/tomeh/mailmole/web"
+	"os/signal"
+
 	//"io/ioutil"
 	"log"
 	//"net/mail"
 	"os"
-	"os/exec"
-	"runtime"
-	//"github.com/tomeh/mailmole/web"
 )
 
 func init() {
@@ -22,10 +22,12 @@ func init() {
 
 func flags() {
 	flag.BoolVar(&http, "http", true, "Launch http server (default: true)")
-
-	flag.IntVar(&port, "port", 8084, "The port at which to serve http.")
-	flag.StringVar(&host, "host", "127.0.0.1", "The host at which to serve http.")
+	flag.IntVar(&httpPort, "http_port", 8080, "The port at which to serve http.")
+	flag.StringVar(&httpHost, "http_host", "127.0.0.1", "The host at which to serve http.")
 	flag.BoolVar(&autoLaunchBrowser, "launchBrowser", true, "Open a browser session (default: true)")
+
+	flag.IntVar(&smtpPort, "smtp_port", 2525, "SMTP Port.")
+	flag.StringVar(&smtpHost, "smtp_host", "0.0.0.0", "Bound IP for SMTP connections.")
 
 	log.SetFlags(log.LstdFlags | log.Lshortfile)
 }
@@ -42,16 +44,16 @@ func main() {
 	//	listeners = append(listeners, con)
 	//}
 
-	//if http {
-	//	// Launch the http server.
-	//	httpServer := web.NewServer(host, port)
-	//
-	//	if autoLaunchBrowser {
-	//		go launchBrowser(httpServer.GetBaseUrl())
-	//	}
-	//
-	//	go httpServer.Start()
-	//}
+	if http {
+		// Launch the http server.
+		httpServer := web.NewServer(httpHost, httpPort)
+
+		if autoLaunchBrowser {
+			go browser.LaunchBrowser(httpServer.GetBaseUrl())
+		}
+
+		go httpServer.Start()
+	}
 
 	hostName, err := os.Hostname()
 	if err != nil {
@@ -59,19 +61,31 @@ func main() {
 	}
 
 	smtpServer := smtp.NewServer(smtp.ServerConfig{
-		Addr:     "0.0.0.0",
-		Port:     2525,
+		Addr:     smtpHost,
+		Port:     smtpPort,
 		HostName: hostName,
 	})
 
 	// Move these to the server struct
-	started := make(chan bool)
-	stop := make(chan bool)
-	_ = smtpServer.ListenAndServe(started, stop)
+	started, stop := make(chan bool), make(chan bool)
+	go smtpServer.ListenAndServe(started, stop)
 
-	// Remove these, need to handle this on a ctrl c or stop signal or whatever.
 	<-started
-	started <- true
+
+	c := make(chan os.Signal, 1)
+	signal.Notify(c, os.Interrupt)
+
+	go func(){
+		for range c {
+			// sig is a ^C, handle it
+			log.Println("^C detected - Shutting down")
+			stop <- true
+		}
+	}()
+
+	<-stop
+
+	log.Println("Done. Have a nice day!")
 }
 
 //func mailHandler(msg *mail.Message) {
@@ -85,42 +99,12 @@ func main() {
 //	log.Println(string(b))
 //}
 
-func browserCmd() (string, bool) {
-	browser := map[string]string{
-		"darwin":  "open",
-		"linux":   "xdg-open",
-		"windows": "start",
-	}
-	cmd, ok := browser[runtime.GOOS]
-	return cmd, ok
-}
-
-func launchBrowser(addr string) {
-	browser, ok := browserCmd()
-	if !ok {
-		log.Printf("Cannot launch browser on %s systems", runtime.GOOS)
-		return
-	}
-
-	url := fmt.Sprintf("http://%s", addr)
-	log.Printf("Launching browser at %s", url)
-	cmd := execCommand(browser, url)
-
-	output, err := cmd.CombinedOutput()
-	if err != nil {
-		log.Println(err)
-	}
-	log.Println(string(output))
-}
-
 var (
-	http bool
-
-	port              int
-	host              string
+	http              bool
+	httpPort          int
+	httpHost          string
 	autoLaunchBrowser bool
 
-	// We hold a reference to exec.Command here so we can mock the function
-	// in testing. See launchBrowser.
-	execCommand = exec.Command
+	smtpPort int
+	smtpHost string
 )

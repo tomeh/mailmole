@@ -29,7 +29,7 @@ func TestServer_ListenAndServe(t *testing.T) {
 	}
 }
 
-func TestSmtp(t *testing.T) {
+func TestSmtpInteraction(t *testing.T) {
 	server := newTestServer()
 	server.start()
 	defer server.stop()
@@ -64,12 +64,19 @@ func TestSmtp(t *testing.T) {
 	}
 
 	client.Write("Hello SMTP\r\n")
+	client.Write("Finishing now\r\n")
 	client.Write(".\r\n")
-
 	endDataResponse := client.Read()
 
 	if endDataResponse != fmt.Sprintf("250 OK\r\n") {
 		t.Errorf("DATA (end) Response is unexpected - %s", endDataResponse)
+	}
+
+	client.Write("QUIT\r\n")
+	quitResponse := client.Read()
+
+	if quitResponse != fmt.Sprintf("221 localhost closing connection.\r\n") {
+		t.Errorf("QUIT Response is unexpected - %s", quitResponse)
 	}
 }
 
@@ -88,14 +95,8 @@ type testServer struct {
 }
 
 func (ts *testServer) start() {
-	go func() {
-		err := ts.ListenAndServe(ts.startCh, ts.stopCh)
-		if err != nil {
-			panic(err)
-		}
-	}()
+	go ts.ListenAndServe(ts.startCh, ts.stopCh)
 
-	ts.startCh <- true
 	<-ts.startCh
 }
 
@@ -119,8 +120,10 @@ func (tc *testClient) Read() string {
 }
 
 func newTestClient(server *testServer) *testClient {
-	netClient, _ := net.Dial("tcp", fmt.Sprintf("%s:%d", server.ServerConfig.Addr, server.boundPort))
-	greeting, _ := bufio.NewReader(netClient).ReadString('\n')
+	netClient, err := net.Dial("tcp", fmt.Sprintf("%s:%d", server.ServerConfig.Addr, server.boundPort))
+	if err != nil { panic(err) }
+	greeting, err := bufio.NewReader(netClient).ReadString('\n')
+	if err != nil { panic(err) }
 
 	return &testClient{
 		netClient,
