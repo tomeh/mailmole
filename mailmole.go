@@ -4,7 +4,6 @@ package main
 
 import (
 	"flag"
-	"fmt"
 
 	"github.com/tomedharris/mailmole/browser"
 	"github.com/tomedharris/mailmole/smtp"
