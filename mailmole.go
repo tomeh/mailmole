@@ -10,10 +10,10 @@ import (
 	"os/exec"
 	"runtime"
 
-	"github.com/tomeh/mailmole/console"
-	"github.com/tomeh/mailmole/contracts"
-	"github.com/tomeh/mailmole/smtp"
-	"github.com/tomeh/mailmole/web"
+	"github.com/tomedharris/mailmole/console"
+	"github.com/tomedharris/mailmole/contracts"
+	"github.com/tomedharris/mailmole/smtp"
+	"github.com/tomedharris/mailmole/web"
 )
 
 func init() {

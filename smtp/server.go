@@ -3,7 +3,7 @@ package smtp
 import (
 	"time"
 
-	"github.com/tomeh/mailmole/contracts"
+	"github.com/tomedharris/mailmole/contracts"
 )
 
 func NewServer(sub <-chan contracts.Listener) *Server {
