@@ -4,9 +4,11 @@ package main
 
 import (
 	"flag"
-	"github.com/tomeh/mailmole/browser"
-	"github.com/tomeh/mailmole/smtp"
-	"github.com/tomeh/mailmole/web"
+	"fmt"
+
+	"github.com/tomedharris/mailmole/browser"
+	"github.com/tomedharris/mailmole/smtp"
+	"github.com/tomedharris/mailmole/web"
 	"os/signal"
 
 	//"io/ioutil"
