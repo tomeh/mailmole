@@ -1,6 +1,7 @@
 package smtp
 
 import (
+	"bufio"
 	"fmt"
 	"log"
 	"net"
@@ -24,12 +25,12 @@ func NewServer(c ServerConfig) Server {
 }
 
 // TODO - DOCUMENT
-func (server *Server) ListenAndServe(start chan bool, stop chan bool) error {
+func (server *Server) ListenAndServe(start chan bool, stop chan bool) {
 	var stopped bool
 	var err error
 	listener, err := net.Listen("tcp", fmt.Sprintf("%s:%d", server.Addr, server.Port))
 	if err != nil {
-		return err
+		panic(err)
 	}
 
 	server.boundPort = listener.Addr().(*net.TCPAddr).Port
@@ -61,19 +62,20 @@ func (server *Server) ListenAndServe(start chan bool, stop chan bool) error {
 					}
 				}()
 
+				scanner := bufio.NewScanner(netConn)
+				scanner.Split(ScanCRLF)
+
 				smtpConn := connection{
 					netConn,
+					scanner,
 					server,
-					session{StateInit, "", ""},
+					session{StateInit, "", "", ""},
 				}
 
 				smtpConn.handle()
 			}()
 		}
 	}()
-
-	// Signal that the server is started.
-	start <- true
 
 	// Wait for the stop signal.
 	stopped = <-stop
@@ -82,8 +84,6 @@ func (server *Server) ListenAndServe(start chan bool, stop chan bool) error {
 
 	// Signal that the server is stopped.
 	stop <- true
-
-	return err
 }
 
 var (

@@ -10,8 +10,9 @@ type State string
 
 type session struct {
 	State
-	from string
-	to   string
+	from    string
+	to      string
+	message string
 }
 
 func (s *session) changeState(state State) {
@@ -110,7 +111,7 @@ func onEhlo(message string, conn *connection) {
 }
 
 func onMail(message string, conn *connection) {
-	re := regexp.MustCompile(`FROM:\<(\S+@\S+)\>`)
+	re := regexp.MustCompile(`FROM:<(\S+@\S+)>`)
 	matches := re.FindStringSubmatch(strings.Trim(message, "\r"))
 	if len(matches) < 1 {
 		// TODO handle better.
@@ -123,7 +124,7 @@ func onMail(message string, conn *connection) {
 }
 
 func onRcpt(message string, conn *connection) {
-	re := regexp.MustCompile(`TO:\<(\S+@\S+)\>`)
+	re := regexp.MustCompile(`TO:<(\S+@\S+)>`)
 	matches := re.FindStringSubmatch(strings.Trim(message, "\r"))
 	if len(matches) < 1 {
 		// TODO handle better.
@@ -135,10 +136,20 @@ func onRcpt(message string, conn *connection) {
 	conn.mustSend(250, "OK")
 }
 
-func onData(_ string, conn *connection) {
+func onData(message string, conn *connection) {
 	conn.mustSend(354, "Start mail input; end with <CRLF>.<CRLF>")
-	// Loop on receipt, look for <crlf>.<crlf>
 	conn.session.changeState(StateData)
+
+	for conn.Scan() {
+		line := conn.Text()
+		if line == "." {
+			break
+		}
+
+		conn.session.message += fmt.Sprintln(line)
+	}
+
+	conn.session.changeState(StateDataAccepted)
 	conn.mustSend(250, "OK")
 }
 
@@ -165,27 +176,36 @@ func onQuit(_ string, conn *connection) {
 	conn.mustSend(221, fmt.Sprintf("%s closing connection.", conn.Server.HostName))
 }
 
-func handleClientInput(input string, conn *connection) {
+type connectionHandler func(string, *connection) bool
+
+func handleClientInput(input string, conn *connection) (shouldContinue bool) {
+	defer func() {
+		shouldContinue = conn.session.State == StateQuit
+	}()
+
 	for _, handler := range handlers {
 		if handler.match(input) {
 			handler.clientInputHandler(input, conn)
-			return
+			return shouldContinue
 		}
 	}
 
 	// TODO Setup a map of standard errors codes.
 	conn.mustSend(500, "Unrecognized command")
+
+	return shouldContinue
 }
 
 const (
-	StateInit State = "init"
-	StateEhlo State = "ehlo"
-	StateHelo State = "helo"
-	StateMail State = "mail"
-	StateRcpt State = "rcpt"
-	StateData State = "data"
-	StateRset State = "rset"
-	StateNoop State = "noop"
-	StateVrfy State = "vrfy"
-	StateQuit State = "quit"
+	StateInit         State = "init"
+	StateEhlo         State = "ehlo"
+	StateHelo         State = "helo"
+	StateMail         State = "mail"
+	StateRcpt         State = "rcpt"
+	StateData         State = "data"
+	StateDataAccepted State = "data_accepted"
+	StateRset         State = "rset"
+	StateNoop         State = "noop"
+	StateVrfy         State = "vrfy"
+	StateQuit         State = "quit"
 )

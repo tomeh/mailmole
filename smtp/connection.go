@@ -1,20 +1,16 @@
 package smtp
 
 import (
+	"bufio"
+	"bytes"
 	"fmt"
 	"net"
-	"strings"
 )
-
-var lfReplacer *strings.Replacer
-
-func init() {
-	lfReplacer = strings.NewReplacer("\r\n", "\r\n", "\r", "\r\n")
-}
 
 // Represents a connection from an SMTP Client.
 type connection struct {
 	rw net.Conn
+	*bufio.Scanner
 	*Server
 	session
 }
@@ -44,38 +40,36 @@ func (c *connection) mustSend(status int, message string) {
 func (c *connection) handle() {
 	c.mustSend(220, fmt.Sprintf("%s ESMTP %s %s ready", c.Server.HostName, serverName, version))
 
-	buf := make([]byte, 4)
-	var current string
-	for {
-		// Read the next bytes into the buffer.
-		n, err := c.rw.Read(buf)
-		if err != nil {
-			panic(err)
-		}
-
-		// Standardise any LF chars with <CRLF>.
-		if len(buf[:n]) >= 2 && string(buf[n-2:n]) == "\r\n" {
-			// If we already have an <CRLF> at the end then leave it.
-			current += lfReplacer.Replace(string(buf[:n-2]))
-			current += "\r\n"
-		} else {
-			// Don't include the final char as we could potentially be cutting a <CRLF>
-			// halfway through. We add the final character back in on the following statement.
-			current += lfReplacer.Replace(string(buf[:n-1]))
-			current += string(buf[n-1:n])
-		}
-
-		// Find the first <CRLF> if present.
-		// There will only be 1 part if there is no <CRLF> in the current line.
-		parts := strings.SplitN(current, "\r\n", 2)
-		if len(parts) > 1 {
-			// Handle the line (first part) and assign the remainder of the line to "current".
-			handleClientInput(string(parts[0]), c)
-			current = parts[1]
-		}
-
-		if c.session.State == StateQuit {
+	for c.Scan() {
+		if handleClientInput(c.Text(), c) {
 			break
 		}
 	}
+}
+
+func ScanCRLF(data []byte, atEOF bool) (advance int, token []byte, err error) {
+	if atEOF && len(data) == 0 {
+		return 0, nil, nil
+	}
+
+	if i := bytes.Index(data, []byte{'\r','\n'}); i >= 0 {
+		// We have a full newline-terminated line.
+		return i + 2, dropCR(data[0:i]), nil
+	}
+
+	// If we're at EOF, we have a final, non-terminated line. Return it.
+	if atEOF {
+		return len(data), dropCR(data), nil
+	}
+
+	// Request more data.
+	return 0, nil, nil
+}
+
+func dropCR(data []byte) []byte {
+	if len(data) > 0 && data[len(data)-1] == '\r' {
+		return data[0 : len(data)-1]
+	}
+
+	return data
 }

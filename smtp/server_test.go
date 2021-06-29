@@ -29,7 +29,7 @@ func TestServer_ListenAndServe(t *testing.T) {
 	}
 }
 
-func TestSmtp(t *testing.T) {
+func TestSmtpInteraction(t *testing.T) {
 	server := newTestServer()
 	server.start()
 	defer server.stop()
@@ -64,12 +64,19 @@ func TestSmtp(t *testing.T) {
 	}
 
 	client.Write("Hello SMTP\r\n")
+	client.Write("Finishing now\r\n")
 	client.Write(".\r\n")
-
 	endDataResponse := client.Read()
 
 	if endDataResponse != fmt.Sprintf("250 OK\r\n") {
 		t.Errorf("DATA (end) Response is unexpected - %s", endDataResponse)
+	}
+
+	client.Write("QUIT\r\n")
+	quitResponse := client.Read()
+
+	if quitResponse != fmt.Sprintf("221 localhost closing connection.\r\n") {
+		t.Errorf("QUIT Response is unexpected - %s", quitResponse)
 	}
 }
 

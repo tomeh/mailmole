@@ -6,6 +6,8 @@ import (
 	"flag"
 	"fmt"
 	smtp "github.com/tomeh/mailmole/smtp"
+	"os/signal"
+
 	//"io/ioutil"
 	"log"
 	//"net/mail"
@@ -65,13 +67,26 @@ func main() {
 	})
 
 	// Move these to the server struct
-	started := make(chan bool)
+	start := make(chan bool)
 	stop := make(chan bool)
-	_ = smtpServer.ListenAndServe(started, stop)
+	go smtpServer.ListenAndServe(start, stop)
 
-	// Remove these, need to handle this on a ctrl c or stop signal or whatever.
-	<-started
-	started <- true
+	start <- true
+
+	c := make(chan os.Signal, 1)
+	signal.Notify(c, os.Interrupt)
+
+	go func(){
+		for _ = range c {
+			// sig is a ^C, handle it
+			fmt.Println("Shutting down ...")
+			stop <- true
+		}
+	}()
+
+	<-stop
+
+	fmt.Println("Done. Have a nice day!")
 }
 
 //func mailHandler(msg *mail.Message) {
